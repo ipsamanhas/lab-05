@@ -2,8 +2,8 @@
 
 ## Student Details
 
-- **Full Name:** `<Ipsa Manhas>`
-- **CCID:** `<imanhas>`
+- **Full Name:** `Ipsa Manhas`
+- **CCID:** `imanhas`
 
 ## References and Resources
 
