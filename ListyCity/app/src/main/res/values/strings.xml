@@ -1,3 +1,19 @@
 <resources>
     <string name="app_name">Lab5-starter</string>
+
+    <string name="add_city">Add City</string>
+    <string name="edit_city">Edit City</string>
+    <string name="delete_city">Delete City</string>
+    <string name="city_name">City Name</string>
+    <string name="city_country">Country</string>
+    <string name="city_name_hint">Enter city name</string>
+    <string name="city_country_hint">Enter country</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Dialogs / errors -->
+    <string name="error_loading">Error loading cities</string>
+    <string name="confirm_delete_title">Delete city?</string>
+    <string name="confirm_delete_message">This action cannot be undone.</string>
+    <string name="confirm">Confirm</string>
 </resources>
