@@ -1,0 +1,19 @@
+# Gradle files
+.gradle/
+build/
+app/build/
+
+# Android Studio
+.idea/
+*.iml
+local.properties
+
+# Mac
+.DS_Store
+
+# Logs
+*.log
+
+# Generated files
+captures/
+outputs/
