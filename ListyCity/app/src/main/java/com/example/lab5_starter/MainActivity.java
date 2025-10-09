@@ -2,7 +2,6 @@ package com.example.lab5_starter;
 
 import android.os.Bundle;
 import android.util.Log;
-import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
@@ -14,7 +13,7 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.button.MaterialButton;
 import com.google.firebase.firestore.CollectionReference;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
@@ -26,7 +25,7 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
     private Button addCityButton;
     private ListView cityListView;
-    private FloatingActionButton fabDelete;
+    private MaterialButton buttonDelete;   // <-- red bottom button
 
     private ArrayList<City> cityArrayList;
     private ArrayAdapter<City> cityArrayAdapter;
@@ -34,8 +33,8 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
     private FirebaseFirestore db;
     private CollectionReference citiesRef;
 
-    // keep track of the currently selected city (single-select delete)
-    private City selectedCity = null;
+    // delete-mode: after tapping Delete, next city tap deletes that city
+    private boolean isDeleteMode = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,11 +50,11 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
         // Views
         addCityButton = findViewById(R.id.buttonAddCity);
-        cityListView = findViewById(R.id.listviewCities);
-        fabDelete = findViewById(R.id.fabDelete);
+        cityListView  = findViewById(R.id.listviewCities);
+        buttonDelete  = findViewById(R.id.buttonDelete);
 
         // Adapter
-        cityArrayList = new ArrayList<>();
+        cityArrayList    = new ArrayList<>();
         cityArrayAdapter = new CityArrayAdapter(this, cityArrayList);
         cityListView.setAdapter(cityArrayAdapter);
 
@@ -69,78 +68,63 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
                 Log.e("Firestore", error.toString());
                 return;
             }
-            if (value != null && !value.isEmpty()){
-                cityArrayList.clear();
-                for (QueryDocumentSnapshot snapshot: value){
+            cityArrayList.clear();
+            if (value != null && !value.isEmpty()) {
+                for (QueryDocumentSnapshot snapshot : value) {
                     String name = snapshot.getString("name");
                     String province = snapshot.getString("province");
                     cityArrayList.add(new City(name, province));
                 }
-                cityArrayAdapter.notifyDataSetChanged();
-
-                // if the previously-selected city was deleted, clear the selection
-                if (selectedCity != null) {
-                    boolean stillThere = false;
-                    for (City c : cityArrayList) {
-                        if (c.getName().equals(selectedCity.getName())) {
-                            stillThere = true;
-                            break;
-                        }
-                    }
-                    if (!stillThere) {
-                        selectedCity = null;
-                        fabDelete.setVisibility(View.GONE);
-                    }
-                }
-            } else {
-                cityArrayList.clear();
-                cityArrayAdapter.notifyDataSetChanged();
-                selectedCity = null;
-                fabDelete.setVisibility(View.GONE);
             }
+            cityArrayAdapter.notifyDataSetChanged();
         });
 
         // Add City
         addCityButton.setOnClickListener(view -> {
             CityDialogFragment cityDialogFragment = new CityDialogFragment();
-            cityDialogFragment.show(getSupportFragmentManager(),"Add City");
+            cityDialogFragment.show(getSupportFragmentManager(), "Add City");
         });
 
-        // Select for edit OR delete
+        // Tap list items: delete if armed; otherwise open edit dialog
         cityListView.setOnItemClickListener((adapterView, view, i, l) -> {
-            selectedCity = cityArrayAdapter.getItem(i);
-            // show FAB only when an item is selected
-            fabDelete.setVisibility(View.VISIBLE);
+            City tapped = cityArrayAdapter.getItem(i);
+            if (tapped == null) return;
 
-            // open details dialog
-            CityDialogFragment cityDialogFragment = CityDialogFragment.newInstance(selectedCity);
-            cityDialogFragment.show(getSupportFragmentManager(),"City Details");
-        });
-
-        // Delete selected city when FAB tapped
-        fabDelete.setOnClickListener(v -> {
-            if (selectedCity == null) {
-                Toast.makeText(this, "Select a city to delete", Toast.LENGTH_SHORT).show();
-                return;
+            if (isDeleteMode) {
+                citiesRef.document(tapped.getName()).delete()
+                        .addOnSuccessListener(unused -> {
+                            Toast.makeText(this, "Deleted " + tapped.getName(), Toast.LENGTH_SHORT).show();
+                            setDeleteMode(false);
+                        })
+                        .addOnFailureListener(e ->
+                                Toast.makeText(this, "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            } else {
+                CityDialogFragment cityDialogFragment = CityDialogFragment.newInstance(tapped);
+                cityDialogFragment.show(getSupportFragmentManager(), "City Details");
             }
-            // Delete from Firestore; snapshot listener updates the UI
-            citiesRef.document(selectedCity.getName()).delete()
-                    .addOnSuccessListener(unused -> {
-                        Toast.makeText(this, "Deleted " + selectedCity.getName(), Toast.LENGTH_SHORT).show();
-                        selectedCity = null;
-                        fabDelete.setVisibility(View.GONE);
-                    })
-                    .addOnFailureListener(e -> {
-                        Toast.makeText(this, "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                    });
         });
+
+        // Red bottom "Delete" button toggles delete mode
+        buttonDelete.setOnClickListener(v -> setDeleteMode(!isDeleteMode));
+        setDeleteMode(false); // default
+    }
+
+    /** Be able to delete any city of the user's choice */
+    private void setDeleteMode(boolean enabled) {
+        isDeleteMode = enabled;
+        if (enabled) {
+            Toast.makeText(this, "Delete mode ON: tap a city to delete. Tap Delete again to cancel.", Toast.LENGTH_SHORT).show();
+            buttonDelete.setAlpha(1.0f);
+        } else {
+            buttonDelete.setAlpha(0.95f);
+        }
     }
 
     // ===== Dialog callbacks =====
 
     @Override
     public void updateCity(City city, String title, String year) {
-        // capture old document id *before* mutating
+        // capture old id BEFORE mutation
         String oldName = city.getName();
 
         // update local object & UI
@@ -148,18 +132,16 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
         city.setProvince(year);
         cityArrayAdapter.notifyDataSetChanged();
 
-        // if the document id (name) changed, delete the old doc
+        // if id changed, delete old doc
         if (!oldName.equals(title)) {
             citiesRef.document(oldName).delete();
         }
-
-        // write/replace the new/updated doc
+        // write/replace new doc
         citiesRef.document(title).set(new City(title, year));
     }
 
     @Override
     public void addCity(City city){
-        // write full object; snapshot listener will refresh UI
         DocumentReference docRef = citiesRef.document(city.getName());
         docRef.set(city);
     }
